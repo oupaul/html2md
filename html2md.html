@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTML → Markdown 轉換工具</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #f5f4f0;
+      --surface: #ffffff;
+      --surface2: #f0ede8;
+      --border: #d8d4cc;
+      --border2: #c5c0b8;
+      --text: #1a1917;
+      --text2: #6b6760;
+      --text3: #9c9890;
+      --accent: #2c5f8a;
+      --accent-hover: #1e4a6e;
+      --accent-text: #ffffff;
+      --success: #2d6a4f;
+      --mono: 'Courier New', Courier, monospace;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1917;
+        --surface: #242220;
+        --surface2: #2e2c2a;
+        --border: #3a3835;
+        --border2: #4a4845;
+        --text: #f0ede8;
+        --text2: #a09c97;
+        --text3: #6b6760;
+        --accent: #5b9fd4;
+        --accent-hover: #74b2e0;
+        --accent-text: #0d1a24;
+        --success: #52b788;
+      }
+    }
+
+    body {
+      font-family: "Microsoft JhengHei", "PingFang TC", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      padding: 18px 28px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+    }
+
+    header h1 {
+      font-size: 17px;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+
+    header span {
+      font-size: 13px;
+      color: var(--text3);
+    }
+
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 20px 24px;
+      gap: 16px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: inherit;
+      font-size: 13px;
+      padding: 7px 16px;
+      border-radius: 6px;
+      border: 1px solid var(--border2);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+
+    button:hover { background: var(--surface2); border-color: var(--border2); }
+    button:active { transform: scale(0.98); }
+
+    button.primary {
+      background: var(--accent);
+      color: var(--accent-text);
+      border-color: var(--accent);
+      font-weight: 500;
+    }
+
+    button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); }
+
+    #status {
+      font-size: 13px;
+      color: var(--text2);
+      margin-left: 4px;
+    }
+
+    #status.ok { color: var(--success); }
+    #status.err { color: #c0392b; }
+
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      flex: 1;
+    }
+
+    @media (max-width: 700px) {
+      .panels { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .panel-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--text2);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .panel-label button {
+      font-size: 12px;
+      padding: 3px 10px;
+      text-transform: none;
+      letter-spacing: 0;
+    }
+
+    textarea {
+      font-family: var(--mono);
+      font-size: 12.5px;
+      line-height: 1.6;
+      flex: 1;
+      min-height: 520px;
+      resize: vertical;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    textarea:focus { border-color: var(--accent); }
+    textarea[readonly] { background: var(--surface2); cursor: default; }
+
+    .info-bar {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px 18px;
+    }
+
+    .info-bar p {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text2);
+      margin-bottom: 10px;
+    }
+
+    .tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+    }
+
+    .tag {
+      font-size: 12px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text2);
+    }
+
+    footer {
+      text-align: center;
+      padding: 14px;
+      font-size: 12px;
+      color: var(--text3);
+      border-top: 1px solid var(--border);
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>HTML → Markdown 轉換工具</h1>
+  <span>支援含 JS 動態填表的完整 HTML</span>
+</header>
+
+<main>
+  <div class="toolbar">
+    <button class="primary" onclick="convert()">轉換 (Ctrl+Enter)</button>
+    <button onclick="downloadMd()">下載 .md</button>
+    <button onclick="clearAll()">清除</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-label">
+        <span>輸入 HTML</span>
+        <button onclick="document.getElementById('input').value=''; setStatus('')">清空</button>
+      </div>
+      <textarea id="input" placeholder="貼上完整的 HTML 原始碼..."></textarea>
+    </div>
+    <div class="panel">
+      <div class="panel-label">
+        <span>輸出 Markdown</span>
+        <button id="copy-btn" onclick="copyOutput()">複製全部</button>
+      </div>
+      <textarea id="output" readonly placeholder="轉換結果將顯示在這裡..."></textarea>
+    </div>
+  </div>
+
+  <div class="info-bar">
+    <p>支援轉換項目</p>
+    <div class="tags">
+      <span class="tag">h1–h6 標題</span>
+      <span class="tag">粗體 / 斜體</span>
+      <span class="tag">有序 / 無序清單</span>
+      <span class="tag">連結與圖片</span>
+      <span class="tag">表格 table</span>
+      <span class="tag">程式碼區塊 pre/code</span>
+      <span class="tag">水平線 hr</span>
+      <span class="tag">換行 br / 段落</span>
+      <span class="tag">JS fillTable() 動態資料表格</span>
+      <span class="tag">script 區塊自動略過</span>
+    </div>
+  </div>
+</main>
+
+<footer>完全本地執行 — 無需網路、無需後端、不上傳任何資料</footer>
+
+<script>
+function htmlToMd(html) {
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const dataStore = {};
+
+  doc.querySelectorAll('script').forEach(s => {
+    const text = s.textContent;
+    for (const m of text.matchAll(/const\s+(\w+)\s*=\s*\[([^;]*?)\];/gs)) {
+      try {
+        const cleaned = m[2].replace(/\/\*[\s\S]*?\*\//g, '').trim();
+        const arr = eval('[' + cleaned + ']');
+        if (Array.isArray(arr)) dataStore[m[1]] = arr;
+      } catch(e) {}
+    }
+    for (const m of text.matchAll(/fillTable\(\s*["'](\w+)["']\s*,\s*(\w+)\s*,\s*(\[[^\]]+\])/g)) {
+      const cls = m[1], varName = m[2];
+      let fields;
+      try { fields = eval(m[3]); } catch(e) { continue; }
+      const rows = dataStore[varName];
+      if (!rows) continue;
+      const table = doc.querySelector('table.' + cls);
+      if (!table) continue;
+      const tbody = table.querySelector('tbody');
+      if (!tbody) continue;
+      tbody.innerHTML = '';
+      rows.forEach(row => {
+        const tr = doc.createElement('tr');
+        fields.forEach(f => {
+          const td = doc.createElement('td');
+          td.textContent = (row[f] || '').replace(/\\n/g, ' / ');
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+    }
+  });
+
+  function nodeToMd(node, indent) {
+    indent = indent || 0;
+    if (node.nodeType === 3) {
+      const t = node.textContent;
+      return t.trim() ? t.replace(/\n/g, ' ') : '';
+    }
+    if (node.nodeType !== 1) return '';
+    const tag = node.tagName.toLowerCase();
+    const ch = () => Array.from(node.childNodes).map(c => nodeToMd(c, indent)).join('');
+
+    if (['style','head','script','noscript'].includes(tag)) return '';
+    if (tag === 'br') return '\n';
+    if (tag === 'hr') return '\n---\n\n';
+    if (/^h([1-6])$/.test(tag)) return '\n' + '#'.repeat(+tag[1]) + ' ' + ch().trim() + '\n\n';
+    if (tag === 'p') return '\n' + ch().trim() + '\n\n';
+    if (tag === 'strong' || tag === 'b') return '**' + ch().trim() + '**';
+    if (tag === 'em' || tag === 'i') return '*' + ch().trim() + '*';
+    if (tag === 'code') return '`' + ch() + '`';
+    if (tag === 'pre') {
+      const c = node.querySelector('code');
+      return '\n```\n' + (c ? c.textContent : node.textContent).trim() + '\n```\n\n';
+    }
+    if (tag === 'a') {
+      const href = node.getAttribute('href') || '';
+      return '[' + ch().trim() + '](' + href + ')';
+    }
+    if (tag === 'img') {
+      return '![' + (node.getAttribute('alt') || 'image') + '](' + (node.getAttribute('src') || '') + ')';
+    }
+    if (tag === 'ul' || tag === 'ol') {
+      let i = 0;
+      return '\n' + Array.from(node.children).map(li => {
+        i++;
+        const pfx = tag === 'ol' ? i + '. ' : '- ';
+        return ' '.repeat(indent * 2) + pfx + nodeToMd(li, indent + 1).trim();
+      }).join('\n') + '\n\n';
+    }
+    if (tag === 'li') return ch().trim();
+    if (tag === 'table') {
+      let md = '\n';
+      let headerDone = false;
+      Array.from(node.querySelectorAll('tr')).forEach(tr => {
+        const cells = Array.from(tr.querySelectorAll('th,td'));
+        if (!cells.length) return;
+        const vals = cells.map(c =>
+          c.textContent.replace(/\s*\/\s*/g, ' / ').replace(/\n+/g, ' ').replace(/\|/g, '\\|').trim()
+        );
+        md += '| ' + vals.join(' | ') + ' |\n';
+        if (!headerDone) {
+          md += '|' + cells.map(() => '---|').join('') + '\n';
+          headerDone = true;
+        }
+      });
+      return md + '\n';
+    }
+    return ch();
+  }
+
+  let result = nodeToMd(doc.body || doc.documentElement);
+  return result.replace(/\n{4,}/g, '\n\n\n').trim();
+}
+
+function convert() {
+  const input = document.getElementById('input').value.trim();
+  if (!input) { setStatus('請先貼上 HTML 內容', 'err'); return; }
+  try {
+    const md = htmlToMd(input);
+    document.getElementById('output').value = md;
+    const lines = md.split('\n').length;
+    setStatus('轉換完成 — ' + lines + ' 行', 'ok');
+  } catch(e) {
+    setStatus('轉換失敗：' + e.message, 'err');
+  }
+}
+
+function clearAll() {
+  document.getElementById('input').value = '';
+  document.getElementById('output').value = '';
+  setStatus('');
+}
+
+function copyOutput() {
+  const val = document.getElementById('output').value;
+  if (!val) return;
+  navigator.clipboard.writeText(val).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '已複製!';
+    setTimeout(() => btn.textContent = '複製全部', 1500);
+  });
+}
+
+function downloadMd() {
+  const val = document.getElementById('output').value;
+  if (!val) { setStatus('尚無輸出內容', 'err'); return; }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([val], { type: 'text/markdown' }));
+  a.download = 'output.md';
+  a.click();
+  setStatus('已下載', 'ok');
+}
+
+function setStatus(msg, cls) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = cls || '';
+}
+
+document.getElementById('input').addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') convert();
+});
+</script>
+</body>
+</html>
